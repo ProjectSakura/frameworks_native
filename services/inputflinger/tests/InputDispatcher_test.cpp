@@ -786,6 +786,8 @@ public:
 
     void setFocus(bool hasFocus) { mInfo.hasFocus = hasFocus; }
 
+    void setInputFeatures(int32_t inputFeatures) { mInfo.inputFeatures = inputFeatures; }
+
     void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
         mInfo.dispatchingTimeout = timeout.count();
     }
@@ -903,6 +905,8 @@ public:
         mInfo.ownerPid = ownerPid;
         mInfo.ownerUid = ownerUid;
     }
+
+    void setFlags(int32_t layoutParamsFlags) { mInfo.layoutParamsFlags = layoutParamsFlags; }
 
 private:
     const std::string mName;
