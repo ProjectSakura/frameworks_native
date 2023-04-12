@@ -3424,7 +3424,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
             auto& [applyToken, transactionQueue] = *it;
 
             while (!transactionQueue.empty()) {
-                const auto& transaction = transactionQueue.front();
+                auto& transaction = transactionQueue.front();
                 if (!transactionIsReadyToBeApplied(transaction.desiredPresentTime,
                                                    transaction.states)) {
                     setTransactionFlags(eTransactionFlushNeeded);
@@ -3519,13 +3519,18 @@ void SurfaceFlinger::setTransactionState(
         return;
     }
 
-    applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
+    Vector<DisplayState> displaysList;
+    for (auto& d : displays) {
+        displaysList.add(d);
+    }
+
+    applyTransactionState(states, displaysList, flags, inputWindowCommands, desiredPresentTime,
                           uncacheBuffer, postTime, privileged, hasListenerCallbacks,
                           listenerCallbacks);
 }
 
 void SurfaceFlinger::applyTransactionState(
-        const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
+        const Vector<ComposerState>& states, Vector<DisplayState>& displays, uint32_t flags,
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         const client_cache_t& uncacheBuffer, const int64_t postTime, bool privileged,
         bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
@@ -3548,7 +3553,8 @@ void SurfaceFlinger::applyTransactionState(
         }
     }
 
-    for (const DisplayState& display : displays) {
+    for (DisplayState& display : displays) {
+        display.sanitize(privileged);
         transactionFlags |= setDisplayStateLocked(display);
     }
 
