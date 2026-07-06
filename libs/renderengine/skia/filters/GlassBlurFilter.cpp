@@ -188,10 +188,14 @@ sk_sp<SkImage> GlassBlurFilter::generate(SkiaGpuContext* context, const uint32_t
 
     float sumSquaredR = 0;
     float sumSquaredStep = 0;
+    static constexpr float kPow2[2] = {1.0f, 2.0f};
+    static constexpr float kPow2HalfStep[2] = {0.5f, 1.0f};
     for (int i = 0; i < filterPasses; i++) {
         const float alpha = std::min(1.0f, filterDepth - i);
-        sumSquaredR += powf(powf(2.0f, i - 1) * alpha * M_SQRT2, 2.0f);
-        sumSquaredStep += powf(powf(2.0f, i) * alpha, 2.0f);
+        const float rTerm = kPow2HalfStep[i] * alpha * M_SQRT2;
+        const float stepTerm = kPow2[i] * alpha;
+        sumSquaredR += rTerm * rTerm;
+        sumSquaredStep += stepTerm * stepTerm;
     }
     float step = sqrt(max(0.0f, powf(radius * kInputScale, 2) - sumSquaredR) /
                       (sumSquaredStep == 0 ? 1 : sumSquaredStep));
