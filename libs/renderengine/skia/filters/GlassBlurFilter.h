@@ -42,6 +42,10 @@ private:
     sk_sp<SkRuntimeEffect> mUpSampleBlurEffect;
     sk_sp<SkRuntimeEffect> mFinalUpSampleBlurEffect;
 
+    static constexpr int kMaxCachedSurfaces = 3;
+    mutable sk_sp<SkSurface> mCachedSurfaces[kMaxCachedSurfaces];
+    mutable SkISize mCachedSurfaceSizes[kMaxCachedSurfaces] = {};
+
     void blurInto(const sk_sp<SkSurface>& drawSurface, const sk_sp<SkImage>& readImage,
                   const float radius, const float alpha, const sk_sp<SkRuntimeEffect>&) const;
 

@@ -160,21 +160,31 @@ sk_sp<SkImage> GlassBlurFilter::generate(SkiaGpuContext* context, const uint32_t
     SkIRect targetBlurRect;
     blurRect.roundIn(&targetBlurRect);
 
-    auto makeSurface = [&](float scale) -> sk_sp<SkSurface> {
+    const SkImageInfo blurSurfaceTemplate =
+            input->imageInfo().makeColorType(kRGBA_8888_SkColorType);
+
+    auto makeSurface = [&](int slot, float scale) -> sk_sp<SkSurface> {
         const int newW =
                 std::max(1, static_cast<int>(static_cast<float>(targetBlurRect.width()) / scale));
         const int newH =
                 std::max(1, static_cast<int>(static_cast<float>(targetBlurRect.height()) / scale));
+        if (mCachedSurfaces[slot] && mCachedSurfaceSizes[slot].width() == newW &&
+            mCachedSurfaceSizes[slot].height() == newH) {
+            return mCachedSurfaces[slot];
+        }
+
         sk_sp<SkSurface> surface =
-                context->createRenderTarget(input->imageInfo().makeWH(newW, newH));
+                context->createRenderTarget(blurSurfaceTemplate.makeWH(newW, newH));
         LOG_ALWAYS_FATAL_IF(!surface, "%s: Failed to create surface for blurring!", __func__);
+        mCachedSurfaces[slot] = surface;
+        mCachedSurfaceSizes[slot] = SkISize::Make(newW, newH);
         return surface;
     };
 
     sk_sp<SkSurface> surfaces[kMaxSurfaces] =
-            {filterPasses >= 0 ? makeSurface(1 * kInverseInputScale) : nullptr,
-             filterPasses >= 1 ? makeSurface(2 * kInverseInputScale) : nullptr,
-             filterPasses >= 2 ? makeSurface(4 * kInverseInputScale) : nullptr};
+            {filterPasses >= 0 ? makeSurface(0, 1 * kInverseInputScale) : nullptr,
+             filterPasses >= 1 ? makeSurface(1, 2 * kInverseInputScale) : nullptr,
+             filterPasses >= 2 ? makeSurface(2, 4 * kInverseInputScale) : nullptr};
 
     float sumSquaredR = 0;
     float sumSquaredStep = 0;
