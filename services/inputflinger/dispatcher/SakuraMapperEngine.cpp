@@ -8,7 +8,6 @@
 #include <log/log.h>
 
 #include <cmath>
-#include <sstream>
 
 namespace android {
 
