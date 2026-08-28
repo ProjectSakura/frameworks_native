@@ -4459,6 +4459,26 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
         return;
     }
 
+    std::vector<NotifyMotionArgs> syntheticMotions;
+    if (mSakuraEngine.processKey(args, syntheticMotions)) {
+        for (auto& motionArgs : syntheticMotions) {
+            ui::Transform inverseDisplayTransform;
+            {
+                std::scoped_lock _l(mLock);
+                inverseDisplayTransform = mWindowInfos.getDisplayTransform(motionArgs.displayId).inverse();
+            }
+            for (uint32_t i = 0; i < motionArgs.getPointerCount(); i++) {
+                float rawX = motionArgs.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X);
+                float rawY = motionArgs.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y);
+                vec2 rawP = inverseDisplayTransform.transform(rawX, rawY);
+                motionArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X, rawP.x);
+                motionArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y, rawP.y);
+            }
+            notifyMotion(motionArgs);
+        }
+        return;
+    }
+
     uint32_t policyFlags = args.policyFlags;
     int32_t flags = args.flags;
     int32_t metaState = args.metaState;
@@ -4830,6 +4850,33 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             }
             int32_t keyCode = incomingKey.getKeyCode();
             int32_t metaState = incomingKey.getMetaState();
+
+            NotifyKeyArgs sakuraKeyArgs(incomingKey.getId(), incomingKey.getEventTime(),
+                                        incomingKey.getEventTime(), resolvedDeviceId,
+                                        incomingKey.getSource(), incomingKey.getDisplayId(),
+                                        policyFlags, action, flags, keyCode,
+                                        incomingKey.getScanCode(), metaState,
+                                        incomingKey.getDownTime());
+            std::vector<NotifyMotionArgs> sakuraSyntheticMotions;
+            if (mSakuraEngine.processKey(sakuraKeyArgs, sakuraSyntheticMotions)) {
+                for (auto& motionArgs : sakuraSyntheticMotions) {
+                    ui::Transform inverseDisplayTransform;
+                    {
+                        std::scoped_lock _l(mLock);
+                        inverseDisplayTransform = mWindowInfos.getDisplayTransform(motionArgs.displayId).inverse();
+                    }
+                    for (uint32_t i = 0; i < motionArgs.getPointerCount(); i++) {
+                        float rawX = motionArgs.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X);
+                        float rawY = motionArgs.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y);
+                        vec2 rawP = inverseDisplayTransform.transform(rawX, rawY);
+                        motionArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X, rawP.x);
+                        motionArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y, rawP.y);
+                    }
+                    notifyMotion(motionArgs);
+                }
+                return InputEventInjectionResult::SUCCEEDED;
+            }
+
             KeyEvent keyEvent;
             keyEvent.initialize(incomingKey.getId(), resolvedDeviceId, incomingKey.getSource(),
                                 incomingKey.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
@@ -7796,6 +7843,19 @@ bool InputDispatcher::DispatcherTouchState::isStylusActiveInDisplay(
     }
     const TouchState& state = it->second;
     return state.hasActiveStylus();
+}
+
+void InputDispatcher::setSakuraMapping(const std::string& packageName, const std::string& configJson,
+                                      int32_t displayWidth, int32_t displayHeight) {
+    mSakuraEngine.setProfile(packageName, configJson, displayWidth, displayHeight);
+}
+
+void InputDispatcher::setSakuraActive(bool active) {
+    mSakuraEngine.setActive(active);
+}
+
+void InputDispatcher::setSakuraOverlayShowing(bool showing) {
+    mSakuraEngine.setOverlayShowing(showing);
 }
 
 } // namespace android::inputdispatcher

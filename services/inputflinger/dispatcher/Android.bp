@@ -33,6 +33,7 @@ cc_library_headers {
 filegroup {
     name: "libinputdispatcher_sources",
     srcs: [
+        "SakuraMapperEngine.cpp",
         "AnrTracker.cpp",
         "Connection.cpp",
         "DebugConfig.cpp",

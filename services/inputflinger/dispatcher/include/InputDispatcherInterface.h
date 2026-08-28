@@ -251,6 +251,11 @@ public:
      * Notify the dispatcher of the latest DisplayTopology.
      */
     virtual void setDisplayTopology(const DisplayTopologyGraph& displayTopologyGraph) = 0;
+
+    virtual void setSakuraMapping(const std::string& packageName, const std::string& configJson,
+                                  int32_t displayWidth, int32_t displayHeight) = 0;
+    virtual void setSakuraActive(bool active) = 0;
+    virtual void setSakuraOverlayShowing(bool showing) = 0;
 };
 
 } // namespace android

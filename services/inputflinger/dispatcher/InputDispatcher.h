@@ -36,6 +36,7 @@
 #include "Monitor.h"
 #include "TouchState.h"
 #include "TouchedWindow.h"
+#include "SakuraMapperEngine.h"
 #include "trace/InputTracerInterface.h"
 
 #include <attestation/HmacKeyManager.h>
@@ -167,7 +168,14 @@ public:
 
     void setDisplayTopology(const DisplayTopologyGraph& displayTopologyGraph) override;
 
+    void setSakuraMapping(const std::string& packageName, const std::string& configJson,
+                          int32_t displayWidth, int32_t displayHeight) override;
+    void setSakuraActive(bool active) override;
+    void setSakuraOverlayShowing(bool showing) override;
+
 private:
+    SakuraMapperEngine mSakuraEngine;
+
     enum class DropReason {
         NOT_DROPPED,
         POLICY,
