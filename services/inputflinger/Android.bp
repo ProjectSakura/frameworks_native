@@ -119,6 +119,7 @@ cc_defaults {
         "libcutils",
         "libhidlbase",
         "libinput",
+        "libsensor",
         "libkll",
         "liblog",
         "libprocessgroup",

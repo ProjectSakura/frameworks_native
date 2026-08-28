@@ -2,6 +2,7 @@
 
 #include <NotifyArgs.h>
 #include <input/Input.h>
+#include <sensor/SakuraSensorBridge.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -20,6 +21,9 @@ enum class SakuraMappingType {
     TAP,
     JOYSTICK_WASD,
     SWIPE,
+    GYRO,
+    GYRO_LEFT,
+    GYRO_RIGHT,
 };
 
 struct SakuraKeyMapping {
@@ -28,6 +32,7 @@ struct SakuraKeyMapping {
     float normX{0.0f};
     float normY{0.0f};
     float radius{0.08f};
+    float sensitivity{1.0f};
     int32_t upKey{0};
     int32_t downKey{0};
     int32_t leftKey{0};
@@ -71,6 +76,7 @@ private:
 
     std::unordered_map<int32_t, SakuraKeyMapping> mMappingsByKeyCode;
     std::vector<SakuraKeyMapping> mJoystickMappings;
+    std::vector<SakuraKeyMapping> mGyroMappings;
 
     std::map<int32_t, SakuraActiveTouch> mActiveTouches;
     std::set<int32_t> mPressedKeys;
@@ -84,6 +90,7 @@ private:
                                std::vector<NotifyMotionArgs>& outMotions);
 
     void parseProfileJsonLocked(const std::string& json);
+    void updateVirtualGyroLocked();
 };
 
 } // namespace android

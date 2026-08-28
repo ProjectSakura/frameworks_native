@@ -16,7 +16,9 @@ SakuraMapperEngine::SakuraMapperEngine() {
     ALOGI("SakuraMapperEngine initialized");
 }
 
-SakuraMapperEngine::~SakuraMapperEngine() {}
+SakuraMapperEngine::~SakuraMapperEngine() {
+    SakuraSensorBridge::reset();
+}
 
 void SakuraMapperEngine::setProfile(const std::string& packageName, const std::string& profileJson,
                                     int32_t displayWidth, int32_t displayHeight) {
@@ -27,19 +29,21 @@ void SakuraMapperEngine::setProfile(const std::string& packageName, const std::s
 
     mMappingsByKeyCode.clear();
     mJoystickMappings.clear();
+    mGyroMappings.clear();
     mActiveTouches.clear();
     mPressedKeys.clear();
     mLastDownTime = 0;
+    SakuraSensorBridge::reset();
 
     if (!profileJson.empty()) {
         parseProfileJsonLocked(profileJson);
-        mEnabled = !mMappingsByKeyCode.empty() || !mJoystickMappings.empty();
+        mEnabled = !mMappingsByKeyCode.empty() || !mJoystickMappings.empty() || !mGyroMappings.empty();
     } else {
         mEnabled = false;
     }
 
     ALOGI("SakuraMapperEngine profile updated for %s, enabled=%d, mappings=%zu, display=%dx%d",
-          mActivePackage.c_str(), mEnabled, mMappingsByKeyCode.size() + mJoystickMappings.size(),
+          mActivePackage.c_str(), mEnabled, mMappingsByKeyCode.size(),
           mDisplayWidth, mDisplayHeight);
 }
 
@@ -50,6 +54,7 @@ void SakuraMapperEngine::setActive(bool active) {
         mActiveTouches.clear();
         mPressedKeys.clear();
         mLastDownTime = 0;
+        SakuraSensorBridge::reset();
     }
 }
 
@@ -60,6 +65,7 @@ void SakuraMapperEngine::setOverlayShowing(bool showing) {
         mActiveTouches.clear();
         mPressedKeys.clear();
         mLastDownTime = 0;
+        SakuraSensorBridge::reset();
     }
 }
 
@@ -148,6 +154,30 @@ void SakuraMapperEngine::parseProfileJsonLocked(const std::string& json) {
                 mapping.normY = y;
                 mMappingsByKeyCode[k] = mapping;
             }
+        } else if (typeStr == "gyro_left") {
+            if (!keyStr.empty()) {
+                int32_t k = std::stoi(keyStr);
+                SakuraKeyMapping mapping;
+                mapping.keyCode = k;
+                mapping.type = SakuraMappingType::GYRO_LEFT;
+                mapping.normX = x;
+                mapping.normY = y;
+                std::string sensStr = findValue(objStr, "sensitivity");
+                mapping.sensitivity = sensStr.empty() ? 1.0f : std::stof(sensStr);
+                mMappingsByKeyCode[k] = mapping;
+            }
+        } else if (typeStr == "gyro_right") {
+            if (!keyStr.empty()) {
+                int32_t k = std::stoi(keyStr);
+                SakuraKeyMapping mapping;
+                mapping.keyCode = k;
+                mapping.type = SakuraMappingType::GYRO_RIGHT;
+                mapping.normX = x;
+                mapping.normY = y;
+                std::string sensStr = findValue(objStr, "sensitivity");
+                mapping.sensitivity = sensStr.empty() ? 1.0f : std::stof(sensStr);
+                mMappingsByKeyCode[k] = mapping;
+            }
         } else if (typeStr == "joystick_wasd") {
             SakuraKeyMapping mapping;
             mapping.type = SakuraMappingType::JOYSTICK_WASD;
@@ -172,9 +202,101 @@ void SakuraMapperEngine::parseProfileJsonLocked(const std::string& json) {
             mMappingsByKeyCode[mapping.downKey] = mapping;
             mMappingsByKeyCode[mapping.leftKey] = mapping;
             mMappingsByKeyCode[mapping.rightKey] = mapping;
+        } else if (typeStr == "gyro") {
+            SakuraKeyMapping mapping;
+            mapping.type = SakuraMappingType::GYRO;
+            mapping.normX = x;
+            mapping.normY = y;
+
+            std::string sensStr = findValue(objStr, "sensitivity");
+            mapping.sensitivity = sensStr.empty() ? 1.0f : std::stof(sensStr);
+
+            std::string upStr = findValue(objStr, "up");
+            std::string downStr = findValue(objStr, "down");
+            std::string leftStr = findValue(objStr, "left");
+            std::string rightStr = findValue(objStr, "right");
+
+            mapping.upKey = upStr.empty() ? 51 : std::stoi(upStr);
+            mapping.downKey = downStr.empty() ? 47 : std::stoi(downStr);
+            mapping.leftKey = leftStr.empty() ? 35 : std::stoi(leftStr);
+            mapping.rightKey = rightStr.empty() ? 36 : std::stoi(rightStr);
+
+            mGyroMappings.push_back(mapping);
+            mMappingsByKeyCode[mapping.upKey] = mapping;
+            mMappingsByKeyCode[mapping.downKey] = mapping;
+            mMappingsByKeyCode[mapping.leftKey] = mapping;
+            mMappingsByKeyCode[mapping.rightKey] = mapping;
         }
 
         current = objEnd + 1;
+    }
+}
+
+void SakuraMapperEngine::updateVirtualGyroLocked() {
+    bool isLandscape = (mDisplayWidth > mDisplayHeight);
+
+    float roll = 0.0f;
+    float pitch = 0.0f;
+    float yaw = 0.0f;
+    float accelX = 0.0f;
+    float accelY = 0.0f;
+
+    for (const auto& gyro : mGyroMappings) {
+        float sens = gyro.sensitivity > 0.0f ? gyro.sensitivity : 1.0f;
+        float steer = 0.0f;
+        float pitchSteer = 0.0f;
+
+        if (mPressedKeys.count(gyro.leftKey)) steer -= 1.0f;
+        if (mPressedKeys.count(gyro.rightKey)) steer += 1.0f;
+        if (mPressedKeys.count(gyro.upKey)) pitchSteer += 1.0f;
+        if (mPressedKeys.count(gyro.downKey)) pitchSteer -= 1.0f;
+
+        if (isLandscape) {
+            accelY += steer * 8.0f * sens;
+            accelX += pitchSteer * 7.0f * sens;
+            roll += steer * 6.0f * sens;
+            yaw += steer * 5.0f * sens;
+            pitch += pitchSteer * 5.0f * sens;
+        } else {
+            accelX += steer * 8.0f * sens;
+            accelY += pitchSteer * 7.0f * sens;
+            roll += steer * 6.0f * sens;
+            pitch += pitchSteer * 5.0f * sens;
+        }
+    }
+
+    for (const auto& [keyCode, mapping] : mMappingsByKeyCode) {
+        if (mPressedKeys.count(keyCode)) {
+            float sens = mapping.sensitivity > 0.0f ? mapping.sensitivity : 1.0f;
+            if (mapping.type == SakuraMappingType::GYRO_LEFT) {
+                if (isLandscape) {
+                    accelY -= 8.0f * sens;
+                    roll -= 6.0f * sens;
+                    yaw -= 5.0f * sens;
+                } else {
+                    accelX -= 8.0f * sens;
+                    roll -= 6.0f * sens;
+                }
+            } else if (mapping.type == SakuraMappingType::GYRO_RIGHT) {
+                if (isLandscape) {
+                    accelY += 8.0f * sens;
+                    roll += 6.0f * sens;
+                    yaw += 5.0f * sens;
+                } else {
+                    accelX += 8.0f * sens;
+                    roll += 6.0f * sens;
+                }
+            }
+        }
+    }
+
+    ALOGI("SakuraMapperEngine: Gyro tilt -> isLandscape=%d, accelX=%.2f, accelY=%.2f, roll=%.2f",
+          isLandscape, accelX, accelY, roll);
+
+    if (std::abs(roll) > 0.01f || std::abs(pitch) > 0.01f || std::abs(accelX) > 0.01f || std::abs(accelY) > 0.01f) {
+        SakuraSensorBridge::setGyroTilt(roll, pitch, yaw, accelX, accelY);
+    } else {
+        SakuraSensorBridge::reset();
     }
 }
 
@@ -265,7 +387,12 @@ bool SakuraMapperEngine::processKey(const NotifyKeyArgs& keyArgs,
         mPressedKeys.erase(keyArgs.keyCode);
     }
 
-    if (mapping.type == SakuraMappingType::TAP) {
+    if (mapping.type == SakuraMappingType::GYRO ||
+        mapping.type == SakuraMappingType::GYRO_LEFT ||
+        mapping.type == SakuraMappingType::GYRO_RIGHT) {
+        updateVirtualGyroLocked();
+        return true;
+    } else if (mapping.type == SakuraMappingType::TAP) {
         float posX = mapping.normX * mDisplayWidth;
         float posY = mapping.normY * mDisplayHeight;
 

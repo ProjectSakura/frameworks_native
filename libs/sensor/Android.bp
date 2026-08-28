@@ -50,6 +50,7 @@ cc_library {
         "BitTube.cpp",
         "ISensorEventConnection.cpp",
         "ISensorServer.cpp",
+        "SakuraSensorBridge.cpp",
         "Sensor.cpp",
         "SensorEventQueue.cpp",
         "SensorManager.cpp",

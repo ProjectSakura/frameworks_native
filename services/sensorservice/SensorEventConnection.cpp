@@ -26,6 +26,7 @@
 #include "BatteryService.h"
 #include "SensorEventConnection.h"
 #include "SensorDevice.h"
+#include <sensor/SakuraSensorBridge.h>
 
 #define UNUSED(x) (void)(x)
 
@@ -367,6 +368,19 @@ status_t SensorService::SensorEventConnection::sendEvents(
                 if (buffer[i].type == SENSOR_TYPE_META_DATA) {
                     scratch[count++] = buffer[i++];
                 }
+            }
+        }
+    }
+
+    if (SakuraSensorBridge::sActive.load(std::memory_order_relaxed)) {
+        for (int j = 0; j < count; ++j) {
+            if (scratch[j].type == SENSOR_TYPE_GYROSCOPE) {
+                scratch[j].data[0] += SakuraSensorBridge::sGyroPitch.load(std::memory_order_relaxed);
+                scratch[j].data[1] += SakuraSensorBridge::sGyroRoll.load(std::memory_order_relaxed);
+                scratch[j].data[2] += SakuraSensorBridge::sGyroYaw.load(std::memory_order_relaxed);
+            } else if (scratch[j].type == SENSOR_TYPE_ACCELEROMETER || scratch[j].type == SENSOR_TYPE_GRAVITY) {
+                scratch[j].data[0] += SakuraSensorBridge::sAccelX.load(std::memory_order_relaxed);
+                scratch[j].data[1] += SakuraSensorBridge::sAccelY.load(std::memory_order_relaxed);
             }
         }
     }
